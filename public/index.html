@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>darkHUB // License Admin</title>
+    <!-- Poppins Font from Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar / Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="accent-dot"></span>
+                <h1>darkHUB <span class="light-text">LICENSING</span></h1>
+            </div>
+            <div class="stats-bar">
+                <div class="stat-card">
+                    <span class="stat-label">Total Keys</span>
+                    <span id="stat-total-keys" class="stat-value">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Active Bindings</span>
+                    <span id="stat-active-devices" class="stat-value">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Suspended Keys</span>
+                    <span id="stat-suspended-keys" class="stat-value">0</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Body -->
+        <main class="main-content">
+            <!-- Left Panel: Key Generation -->
+            <section class="card control-panel">
+                <h2>Generate Licenses</h2>
+                <form id="generator-form">
+                    <div class="form-group">
+                        <label for="key-prefix">Key Prefix</label>
+                        <input type="text" id="key-prefix" placeholder="DH" value="DH" maxlength="6">
+                    </div>
+                    <div class="form-group">
+                        <label for="max-devices">Device Limit (HWID Limit)</label>
+                        <input type="number" id="max-devices" value="1" min="1" max="10">
+                    </div>
+                    <div class="form-group">
+                        <label for="key-count">Number of Keys</label>
+                        <input type="number" id="key-count" value="1" min="1" max="100">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Generate Keys</button>
+                </form>
+            </section>
+
+            <!-- Right Panel: Key Table -->
+            <section class="card table-container">
+                <h2>Active License Keys</h2>
+                <div class="table-wrapper">
+                    <table class="keys-table">
+                        <thead>
+                            <tr>
+                                <th>License Key</th>
+                                <th>Max Devices</th>
+                                <th>Activations</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="keys-table-body">
+                            <tr>
+                                <td colspan="6" class="loading-state">Loading licenses...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Activation Details Modal -->
+    <div id="details-modal" class="modal">
+        <div class="modal-content card">
+            <span class="close-modal">&times;</span>
+            <h2 id="modal-key-title">License Activations</h2>
+            <p class="modal-subtitle">HWID Lock bindings on this key:</p>
+            <div class="modal-body">
+                <table class="modal-table">
+                    <thead>
+                        <tr>
+                            <th>Device Name</th>
+                            <th>Hardware ID (HWID)</th>
+                            <th>IP Address</th>
+                            <th>Date / Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-activations-body">
+                        <!-- Populated via Javascript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
