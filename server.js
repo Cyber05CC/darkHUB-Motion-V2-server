@@ -113,6 +113,7 @@ async function initializeDatabase() {
                     device_name VARCHAR(255),
                     ip_address VARCHAR(100),
                     activated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(key_id, hwid)
                 )
             `);
@@ -136,6 +137,7 @@ async function initializeDatabase() {
                         device_name TEXT,
                         ip_address TEXT,
                         activated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (key_id) REFERENCES keys(id) ON DELETE CASCADE,
                         UNIQUE(key_id, hwid)
                     )
@@ -143,6 +145,15 @@ async function initializeDatabase() {
                 console.log('SQLite database tables initialized.');
             });
         }
+        
+        // Database migration: Add last_seen column if it doesn't exist on older databases
+        try {
+            await dbRun('ALTER TABLE activations ADD COLUMN last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
+            console.log('Database migration: Added last_seen column to activations.');
+        } catch (e) {
+            // Column already exists, ignore
+        }
+        
     } catch (err) {
         console.error('Failed to initialize database tables:', err);
     }
@@ -163,6 +174,7 @@ function checkAdminAuth(req, res, next) {
 
 /**
  * HWID Verification Handshake Endpoint (PUBLIC)
+ * Implements a Lease/Heartbeat model to support cloud GPU VMs (RunPod/Vast.ai)
  */
 app.post('/api/verify', async (req, res) => {
     const { key, hwid, device_name } = req.body;
@@ -184,25 +196,73 @@ app.post('/api/verify', async (req, res) => {
         const keyId = keyRow.id;
         const maxDevices = keyRow.max_devices;
 
+        // Fetch all current activations for this key
         const activations = await dbAll('SELECT * FROM activations WHERE key_id = ?', [keyId]);
+        
+        // 1. Check if the current device is already activated
         const existing = activations.find(act => act.hwid === hwid);
         if (existing) {
+            // Update last_seen timestamp
+            const nowIso = new Date().toISOString();
+            await dbRun(
+                'UPDATE activations SET last_seen = ?, ip_address = ?, device_name = ? WHERE id = ?',
+                [nowIso, ip, device_name || 'Unknown Device', existing.id]
+            );
             return res.json({ status: 'success', message: 'License verified.' });
         }
 
-        if (activations.length >= maxDevices) {
-            return res.status(403).json({
-                status: 'error',
-                message: 'License key is already registered to another device.'
-            });
+        // 2. Check if we have free device slots left
+        if (activations.length < maxDevices) {
+            const nowIso = new Date().toISOString();
+            await dbRun(
+                'INSERT INTO activations (key_id, hwid, device_name, ip_address, last_seen) VALUES (?, ?, ?, ?, ?)',
+                [keyId, hwid, device_name || 'Unknown Device', ip, nowIso]
+            );
+            console.log(`Key ${key} activated on new device ${device_name} (${hwid})`);
+            return res.json({ status: 'success', message: 'License activated on new device.' });
         }
 
-        await dbRun(
-            'INSERT INTO activations (key_id, hwid, device_name, ip_address) VALUES (?, ?, ?, ?)',
-            [keyId, hwid, device_name || 'Unknown Device', ip]
-        );
-        console.log(`Key ${key} activated on new device ${device_name} (${hwid})`);
-        return res.json({ status: 'success', message: 'License activated on new device.' });
+        // 3. Slot limits reached. Check if any existing device has gone inactive
+        let oldestActivation = null;
+        let oldestTime = Infinity;
+        
+        for (const act of activations) {
+            const timeVal = new Date(act.last_seen || act.activated_at).getTime();
+            if (timeVal < oldestTime) {
+                oldestTime = timeVal;
+                oldestActivation = act;
+            }
+        }
+
+        if (oldestActivation) {
+            const now = Date.now();
+            const diffMinutes = (now - oldestTime) / (1000 * 60);
+            
+            // Lease Inactivity Window: 30 minutes
+            const LEASE_WINDOW = 30; 
+            
+            if (diffMinutes > LEASE_WINDOW) {
+                // Device went inactive (VM terminated). Transfer the lease to the new device.
+                await dbRun('DELETE FROM activations WHERE id = ?', [oldestActivation.id]);
+                
+                const nowIso = new Date().toISOString();
+                await dbRun(
+                    'INSERT INTO activations (key_id, hwid, device_name, ip_address, last_seen) VALUES (?, ?, ?, ?, ?)',
+                    [keyId, hwid, device_name || 'Unknown Device', ip, nowIso]
+                );
+                console.log(`Key ${key} lease transferred from ${oldestActivation.device_name} to ${device_name} due to inactivity.`);
+                return res.json({ status: 'success', message: 'License transferred to new session.' });
+            } else {
+                // Active on another device
+                const remaining = Math.ceil(LEASE_WINDOW - diffMinutes);
+                return res.status(403).json({
+                    status: 'error',
+                    message: `License key is actively in use on another device (PC: ${oldestActivation.device_name}). Please wait ${remaining} minutes after closing it there, or reset it in the dashboard.`
+                });
+            }
+        }
+
+        return res.status(403).json({ status: 'error', message: 'License registration limit reached.' });
 
     } catch (err) {
         console.error('Verification error:', err);
