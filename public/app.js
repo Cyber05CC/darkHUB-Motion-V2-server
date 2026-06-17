@@ -7,6 +7,11 @@ const statSuspendedKeys = document.getElementById('stat-suspended-keys');
 const generatorForm = document.getElementById('generator-form');
 const keysTableBody = document.getElementById('keys-table-body');
 
+// Login Elements
+const loginOverlay = document.getElementById('login-overlay');
+const loginForm = document.getElementById('login-form');
+const adminPasswordInput = document.getElementById('admin-password-input');
+
 // Modal Elements
 const detailsModal = document.getElementById('details-modal');
 const modalKeyTitle = document.getElementById('modal-key-title');
@@ -14,12 +19,29 @@ const modalActivationsBody = document.getElementById('modal-activations-body');
 const closeModalBtn = document.querySelector('.close-modal');
 
 let allKeysData = [];
+let adminToken = localStorage.getItem('darkhub_admin_token') || '';
 
 // Init
 document.addEventListener('DOMContentLoaded', () => {
-    fetchKeys();
+    // Check Auth
+    if (adminToken) {
+        loginOverlay.style.display = 'none';
+        fetchKeys();
+    } else {
+        loginOverlay.style.display = 'flex';
+    }
+
+    // Bind Login Form
+    loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        adminToken = adminPasswordInput.value.trim();
+        localStorage.setItem('darkhub_admin_token', adminToken);
+        loginOverlay.style.display = 'none';
+        adminPasswordInput.value = '';
+        fetchKeys();
+    });
     
-    // Bind Form Submit
+    // Bind Key Generator Form
     generatorForm.addEventListener('submit', handleGenerateKeys);
     
     // Close Modal Bindings
@@ -35,17 +57,39 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
+ * Helper to handle API requests and intercept 401 Unauthorized
+ */
+async function authorizedFetch(url, options = {}) {
+    if (!options.headers) options.headers = {};
+    options.headers['X-Admin-Token'] = adminToken;
+
+    const res = await fetch(url, options);
+
+    if (res.status === 401) {
+        // Clear saved token and show login overlay
+        localStorage.removeItem('darkhub_admin_token');
+        adminToken = '';
+        loginOverlay.style.display = 'flex';
+        alert('Session expired or invalid admin password.');
+        throw new Error('Unauthorized');
+    }
+
+    return res;
+}
+
+/**
  * Fetch all keys and render dashboard
  */
 async function fetchKeys() {
     try {
-        const res = await fetch(`${API_BASE}/api/admin/keys`);
+        const res = await authorizedFetch(`${API_BASE}/api/admin/keys`);
         if (!res.ok) throw new Error('Failed to fetch keys.');
         const data = await res.json();
         allKeysData = data;
         
         renderDashboard(data);
     } catch (err) {
+        if (err.message === 'Unauthorized') return;
         console.error(err);
         keysTableBody.innerHTML = `<tr><td colspan="6" class="loading-state" style="color: #ef4444;">Error loading licenses: ${err.message}</td></tr>`;
     }
@@ -55,7 +99,6 @@ async function fetchKeys() {
  * Render stats and table data
  */
 function renderDashboard(keys) {
-    // 1. Calculate stats
     let total = keys.length;
     let activeBindings = 0;
     let suspended = 0;
@@ -69,7 +112,6 @@ function renderDashboard(keys) {
     statActiveDevices.textContent = activeBindings;
     statSuspendedKeys.textContent = suspended;
     
-    // 2. Render table
     if (total === 0) {
         keysTableBody.innerHTML = `<tr><td colspan="6" class="loading-state">No license keys generated yet.</td></tr>`;
         return;
@@ -78,17 +120,9 @@ function renderDashboard(keys) {
     keysTableBody.innerHTML = '';
     keys.forEach(k => {
         const tr = document.createElement('tr');
-        
-        // Status Badge class
         const statusClass = k.status === 'active' ? 'active' : 'suspended';
-        
-        // Dynamic Active Bindings Count
         const bindingClass = k.active_devices > 0 ? 'active-count' : 'active-count zero';
-        const bindingAction = k.active_devices > 0 
-            ? `onclick="showActivationDetails(${k.id})"` 
-            : '';
-            
-        // Toggle Status Button Text
+        const bindingAction = k.active_devices > 0 ? `onclick="showActivationDetails(${k.id})"` : '';
         const statusBtnText = k.status === 'active' ? 'Suspend' : 'Activate';
         const statusBtnClass = k.status === 'active' ? 'btn-mini btn-danger-mini' : 'btn-mini btn-accent-mini';
         
@@ -106,7 +140,6 @@ function renderDashboard(keys) {
                 </div>
             </td>
         `;
-        
         keysTableBody.appendChild(tr);
     });
 }
@@ -122,7 +155,7 @@ async function handleGenerateKeys(e) {
     const prefix = document.getElementById('key-prefix').value.trim();
     
     try {
-        const res = await fetch(`${API_BASE}/api/admin/keys/generate`, {
+        const res = await authorizedFetch(`${API_BASE}/api/admin/keys/generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ count, max_devices, prefix })
@@ -130,10 +163,10 @@ async function handleGenerateKeys(e) {
         
         if (!res.ok) throw new Error('Failed to generate keys.');
         
-        // Reset count input and fetch keys
         document.getElementById('key-count').value = 1;
         fetchKeys();
     } catch (err) {
+        if (err.message === 'Unauthorized') return;
         alert('Error: ' + err.message);
     }
 }
@@ -144,7 +177,7 @@ async function handleGenerateKeys(e) {
 async function handleToggleStatus(id, currentStatus) {
     const nextStatus = currentStatus === 'active' ? 'suspended' : 'active';
     try {
-        const res = await fetch(`${API_BASE}/api/admin/keys/status`, {
+        const res = await authorizedFetch(`${API_BASE}/api/admin/keys/status`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id, status: nextStatus })
@@ -152,6 +185,7 @@ async function handleToggleStatus(id, currentStatus) {
         if (!res.ok) throw new Error('Status toggle failed.');
         fetchKeys();
     } catch (err) {
+        if (err.message === 'Unauthorized') return;
         alert('Error: ' + err.message);
     }
 }
@@ -162,7 +196,7 @@ async function handleToggleStatus(id, currentStatus) {
 async function handleResetKey(id) {
     if (!confirm('Are you sure you want to reset all HWID bindings for this key?')) return;
     try {
-        const res = await fetch(`${API_BASE}/api/admin/keys/reset`, {
+        const res = await authorizedFetch(`${API_BASE}/api/admin/keys/reset`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id })
@@ -170,6 +204,7 @@ async function handleResetKey(id) {
         if (!res.ok) throw new Error('Reset failed.');
         fetchKeys();
     } catch (err) {
+        if (err.message === 'Unauthorized') return;
         alert('Error: ' + err.message);
     }
 }
@@ -178,14 +213,15 @@ async function handleResetKey(id) {
  * Delete key completely
  */
 async function handleDeleteKey(id) {
-    if (!confirm('Are you sure you want to permanently delete this key? all activations will be lost.')) return;
+    if (!confirm('Are you sure you want to permanently delete this key? All activations will be lost.')) return;
     try {
-        const res = await fetch(`${API_BASE}/api/admin/keys/${id}`, {
+        const res = await authorizedFetch(`${API_BASE}/api/admin/keys/${id}`, {
             method: 'DELETE'
         });
         if (!res.ok) throw new Error('Delete failed.');
         fetchKeys();
     } catch (err) {
+        if (err.message === 'Unauthorized') return;
         alert('Error: ' + err.message);
     }
 }

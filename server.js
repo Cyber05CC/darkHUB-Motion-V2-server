@@ -7,6 +7,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DB_PATH = path.join(__dirname, 'licensing.db');
 
+// Secure Admin Password from Environment Variables
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'darkHUB-Default-Admin-Pass-2026';
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -34,7 +37,6 @@ if (isPostgres) {
 // Database Abstraction Wrappers
 function convertQuery(sql) {
     if (!isPostgres) return sql;
-    // Map SQLite '?' placeholders to Postgres '$1', '$2', etc.
     let index = 1;
     return sql.replace(/\?/g, () => `$${index++}`);
 }
@@ -149,8 +151,18 @@ async function initializeDatabase() {
 // Initialize DB schema on startup
 initializeDatabase();
 
+// Middleware to verify Admin Token
+function checkAdminAuth(req, res, next) {
+    const token = req.headers['x-admin-token'];
+    if (token === ADMIN_PASSWORD) {
+        next();
+    } else {
+        res.status(401).json({ error: 'Unauthorized: Invalid Admin Token.' });
+    }
+}
+
 /**
- * HWID Verification Handshake Endpoint
+ * HWID Verification Handshake Endpoint (PUBLIC)
  */
 app.post('/api/verify', async (req, res) => {
     const { key, hwid, device_name } = req.body;
@@ -199,9 +211,9 @@ app.post('/api/verify', async (req, res) => {
 });
 
 /**
- * ADMIN API: Get all keys and their activations
+ * ADMIN API: Get all keys and their activations (SECURED)
  */
-app.get('/api/admin/keys', async (req, res) => {
+app.get('/api/admin/keys', checkAdminAuth, async (req, res) => {
     try {
         const keys = await dbAll(`
             SELECT k.*, 
@@ -224,9 +236,9 @@ app.get('/api/admin/keys', async (req, res) => {
 });
 
 /**
- * ADMIN API: Generate License Keys
+ * ADMIN API: Generate License Keys (SECURED)
  */
-app.post('/api/admin/keys/generate', async (req, res) => {
+app.post('/api/admin/keys/generate', checkAdminAuth, async (req, res) => {
     const { count, prefix, max_devices } = req.body;
     const keyCount = parseInt(count) || 1;
     const deviceLimit = parseInt(max_devices) || 1;
@@ -248,9 +260,9 @@ app.post('/api/admin/keys/generate', async (req, res) => {
 });
 
 /**
- * ADMIN API: Toggle key status (active / suspended)
+ * ADMIN API: Toggle key status (active / suspended) (SECURED)
  */
-app.post('/api/admin/keys/status', async (req, res) => {
+app.post('/api/admin/keys/status', checkAdminAuth, async (req, res) => {
     const { id, status } = req.body;
     if (!id || !status) {
         return res.status(400).json({ error: 'Missing key ID or status.' });
@@ -265,9 +277,9 @@ app.post('/api/admin/keys/status', async (req, res) => {
 });
 
 /**
- * ADMIN API: Reset HWID Activations (Unbind all devices)
+ * ADMIN API: Reset HWID Activations (Unbind all devices) (SECURED)
  */
-app.post('/api/admin/keys/reset', async (req, res) => {
+app.post('/api/admin/keys/reset', checkAdminAuth, async (req, res) => {
     const { id } = req.body;
     if (!id) {
         return res.status(400).json({ error: 'Missing key ID.' });
@@ -282,9 +294,9 @@ app.post('/api/admin/keys/reset', async (req, res) => {
 });
 
 /**
- * ADMIN API: Delete Key
+ * ADMIN API: Delete Key (SECURED)
  */
-app.delete('/api/admin/keys/:id', async (req, res) => {
+app.delete('/api/admin/keys/:id', checkAdminAuth, async (req, res) => {
     const id = req.params.id;
     try {
         await dbRun('DELETE FROM keys WHERE id = ?', [id]);

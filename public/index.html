@@ -11,6 +11,24 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="login-overlay">
+        <div class="card login-card">
+            <div class="logo" style="justify-content: center; margin-bottom: 20px;">
+                <span class="accent-dot"></span>
+                <h1>darkHUB <span class="light-text">ADMIN</span></h1>
+            </div>
+            <p style="margin-bottom: 24px; font-size: 12px; color: var(--text-muted);">Enter admin password to access dashboard:</p>
+            <form id="login-form">
+                <div class="form-group">
+                    <input type="password" id="admin-password-input" placeholder="Password" required style="text-align: center;">
+                </div>
+                <button type="submit" class="btn btn-primary">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Admin Dashboard -->
     <div class="app-container">
         <!-- Sidebar / Header -->
         <header class="header">
