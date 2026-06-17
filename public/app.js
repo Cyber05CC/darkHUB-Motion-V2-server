@@ -23,22 +23,54 @@ let adminToken = localStorage.getItem('darkhub_admin_token') || '';
 
 // Init
 document.addEventListener('DOMContentLoaded', () => {
-    // Check Auth
+    // Check Auth on load
     if (adminToken) {
-        loginOverlay.style.display = 'none';
-        fetchKeys();
+        verifyTokenAndLoad();
     } else {
-        loginOverlay.style.display = 'flex';
+        showLogin();
     }
 
     // Bind Login Form
-    loginForm.addEventListener('submit', (e) => {
+    loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        adminToken = adminPasswordInput.value.trim();
-        localStorage.setItem('darkhub_admin_token', adminToken);
-        loginOverlay.style.display = 'none';
-        adminPasswordInput.value = '';
-        fetchKeys();
+        const enteredPassword = adminPasswordInput.value.trim();
+        
+        // Disable form during verification
+        const submitBtn = loginForm.querySelector('button');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Verifying...';
+
+        try {
+            // Attempt to fetch keys with the entered password BEFORE hiding overlay
+            const res = await fetch(`${API_BASE}/api/admin/keys`, {
+                headers: { 'X-Admin-Token': enteredPassword }
+            });
+
+            if (res.status === 401) {
+                alert('Invalid admin password.');
+                adminPasswordInput.value = '';
+                adminPasswordInput.focus();
+            } else if (!res.ok) {
+                throw new Error('Server returned error status ' + res.status);
+            } else {
+                // Password is correct!
+                adminToken = enteredPassword;
+                localStorage.setItem('darkhub_admin_token', adminToken);
+                
+                const data = await res.json();
+                allKeysData = data;
+                renderDashboard(data);
+                
+                // Show dashboard and hide login screen
+                showDashboard();
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Failed to connect to server: ' + err.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Login';
+        }
     });
     
     // Bind Key Generator Form
@@ -56,6 +88,42 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+function showLogin() {
+    loginOverlay.style.display = 'flex';
+    document.querySelector('.app-container').classList.add('hidden');
+}
+
+function showDashboard() {
+    loginOverlay.style.display = 'none';
+    document.querySelector('.app-container').classList.remove('hidden');
+}
+
+async function verifyTokenAndLoad() {
+    try {
+        const res = await fetch(`${API_BASE}/api/admin/keys`, {
+            headers: { 'X-Admin-Token': adminToken }
+        });
+        
+        if (res.status === 401) {
+            // Invalid saved token
+            localStorage.removeItem('darkhub_admin_token');
+            adminToken = '';
+            showLogin();
+        } else if (!res.ok) {
+            throw new Error('Server returned status ' + res.status);
+        } else {
+            // Valid token!
+            const data = await res.json();
+            allKeysData = data;
+            renderDashboard(data);
+            showDashboard();
+        }
+    } catch (err) {
+        console.error('Connection error, showing login:', err);
+        showLogin();
+    }
+}
+
 /**
  * Helper to handle API requests and intercept 401 Unauthorized
  */
@@ -66,10 +134,9 @@ async function authorizedFetch(url, options = {}) {
     const res = await fetch(url, options);
 
     if (res.status === 401) {
-        // Clear saved token and show login overlay
         localStorage.removeItem('darkhub_admin_token');
         adminToken = '';
-        loginOverlay.style.display = 'flex';
+        showLogin();
         alert('Session expired or invalid admin password.');
         throw new Error('Unauthorized');
     }
