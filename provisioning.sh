@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# --- 0. ARIA2C O'RNATISH (YUKLASH TEZLIGI UCHUN) ---
-if ! command -v aria2c &> /dev/null; then
-    echo "aria2c topilmadi. O'rnatilmoqda..."
+# --- 0. ARIA2C VA BUILD TOOLS O'RNATISH ---
+if ! command -v aria2c &> /dev/null || ! command -v gcc &> /dev/null; then
+    echo "Zaruriy tizim paketlari o'rnatilmoqda..."
     if command -v apt-get &> /dev/null; then
-        apt-get update && apt-get install -y aria2
+        apt-get update && apt-get install -y aria2 build-essential python3-dev
     fi
 fi
 
@@ -124,6 +124,37 @@ for d in */; do
         $PIP_CMD install --no-cache-dir -r "$d/requirements.txt"
     fi
 done
+
+# --- 3.1 darkHUB KODLARINI SHIFRLASH (CYTHON KOMPILYATSIYA) ---
+if [ -d "darkHUB" ] && [ -f "darkHUB/nodes.py" ]; then
+    cd darkHUB
+    echo "=== darkHUB Node'larini shifrlash (Cython kompilyatsiyasi) boshlandi ==="
+    $PIP_CMD install cython
+    
+    # setup.py yaratish
+    cat << 'EOF' > setup.py
+from setuptools import setup
+from Cython.Build import cythonize
+setup(
+    ext_modules=cythonize("nodes.py", compiler_directives={'language_level': "3"})
+)
+EOF
+
+    # Kompilyatsiya qilish
+    /venv/main/bin/python setup.py build_ext --inplace
+    
+    # Asl kodlarni o'chirish (Mijoz ko'ra olmasligi uchun)
+    if ls nodes*.so 1> /dev/null 2>&1; then
+        echo "Kompilyatsiya bajarildi. Asl kodlar o'chirilmoqda..."
+        rm -f nodes.py
+        rm -f setup.py
+        rm -f nodes.c
+        rm -rf build
+    else
+        echo "Xavotirli holat: Kompilyatsiya o'xshamadi! Xavfsizlik uchun python fayli o'chirilmadi."
+    fi
+    cd ..
+fi
 
 # --- 4. MODELLARNI ARIA2C BILAN YUKLASH (MAX TEZLIKDA) ---
 echo "=== Modellarni yuklash boshlandi ==="
