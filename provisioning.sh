@@ -8,6 +8,10 @@ if ! command -v aria2c &> /dev/null; then
     fi
 fi
 
+# --- 0.1 COMFYUI YANGILASH ---
+echo "=== ComfyUI-ni eng so'nggi versiyaga yangilash boshlandi ==="
+cd /workspace/ComfyUI && git pull
+
 # --- 1. PAPKALARNI TAYYORLASH ---
 mkdir -p /workspace/ComfyUI/custom_nodes/
 mkdir -p /workspace/ComfyUI/models/checkpoints/
@@ -133,7 +137,7 @@ fi
 # 4. CLIP Vision
 cd /workspace/ComfyUI/models/clip_vision/
 if [ ! -f "clip_vision_vit_h.safetensors" ]; then
-    aria2c -x 16 -s 16 -k 1M -o "clip_vision_vit_h.safetensors" "https://huggingface.co/comfyanonymous/clip_vision_g/resolve/main/clip_vision_vit_h.safetensors"
+    aria2c -x 16 -s 16 -k 1M -o "clip_vision_vit_h.safetensors" "https://huggingface.co/lllyasviel/misc/resolve/main/clip_vision_vit_h.safetensors"
 fi
 
 # 5. UMT5 XXL Text Encoder
