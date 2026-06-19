@@ -10,7 +10,13 @@ fi
 
 # --- 0.1 COMFYUI YANGILASH ---
 echo "=== ComfyUI-ni eng so'nggi versiyaga yangilash boshlandi ==="
-cd /workspace/ComfyUI && git pull
+if [ -d "/workspace/ComfyUI/.git" ]; then
+    cd /workspace/ComfyUI
+    git fetch --all
+    git checkout master
+    git reset --hard origin/master
+    git pull
+fi
 
 # --- 1. PAPKALARNI TAYYORLASH ---
 mkdir -p /workspace/ComfyUI/custom_nodes/
