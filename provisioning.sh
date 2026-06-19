@@ -109,8 +109,8 @@ if [ ! -f "$PIP_CMD" ]; then
     PIP_CMD="pip"
 fi
 
-# Zaruriy kutubxonalarni ComfyUI-ning o'z muhitiga o'rnatish
-$PIP_CMD install --no-cache-dir opencv-python-headless accelerate deepdiff
+# Zaruriy kutubxonalar va Frontend-ni ComfyUI-ning o'z muhitiga o'rnatish/yangilash
+$PIP_CMD install --no-cache-dir opencv-python-headless accelerate deepdiff comfyui-frontend-package
 
 for d in */; do
     if [ -f "$d/requirements.txt" ]; then
