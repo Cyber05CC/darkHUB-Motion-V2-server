@@ -109,6 +109,12 @@ if [ ! -f "$PIP_CMD" ]; then
     PIP_CMD="pip"
 fi
 
+# ComfyUI-ning o'z requirements.txt faylini o'rnatish/yangilash (comfy-aimdo kabi ichki kutubxonalarni moslashtirish uchun)
+if [ -f "/workspace/ComfyUI/requirements.txt" ]; then
+    echo "ComfyUI-ning asosiy kutubxonalarini yangilash..."
+    $PIP_CMD install --no-cache-dir -r /workspace/ComfyUI/requirements.txt
+fi
+
 # Zaruriy kutubxonalar va Frontend-ni ComfyUI-ning o'z muhitiga o'rnatish/yangilash
 $PIP_CMD install --no-cache-dir opencv-python-headless accelerate deepdiff comfyui-frontend-package
 
