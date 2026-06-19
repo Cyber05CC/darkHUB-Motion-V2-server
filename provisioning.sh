@@ -131,12 +131,22 @@ if [ -d "darkHUB" ] && [ -f "darkHUB/nodes.py" ]; then
     echo "=== darkHUB Node'larini shifrlash (Cython kompilyatsiyasi) boshlandi ==="
     $PIP_CMD install cython
     
-    # setup.py yaratish
+    # setup.py yaratish (Conda muhiti uchun Python.h yo'lini ko'rsatish)
     cat << 'EOF' > setup.py
-from setuptools import setup
+from setuptools import setup, Extension
 from Cython.Build import cythonize
+import sys
+
+py_ver = f"python{sys.version_info.major}.{sys.version_info.minor}"
 setup(
-    ext_modules=cythonize("nodes.py", compiler_directives={'language_level': "3"})
+    ext_modules=cythonize(
+        Extension(
+            "nodes",
+            ["nodes.py"],
+            include_dirs=[f"{sys.prefix}/include/{py_ver}", f"{sys.prefix}/include"]
+        ),
+        compiler_directives={'language_level': "3"}
+    )
 )
 EOF
 
