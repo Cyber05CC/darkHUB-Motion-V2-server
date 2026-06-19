@@ -147,9 +147,3 @@ cd /workspace/ComfyUI/models/loras/
 if [ ! -f "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors" ]; then
     aria2c -x 16 -s 16 -k 1M -o "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors" "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Lightx2v/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors"
 fi
-
-# 7. Wan 2.1 14B SCAIL 2 (FP16)
-cd /workspace/ComfyUI/models/diffusion_models/
-if [ ! -f "wan2.1_14B_SCAIL_2_fp16.safetensors" ]; then
-    aria2c -x 16 -s 16 -k 1M -o "wan2.1_14B_SCAIL_2_fp16.safetensors" "https://huggingface.co/Comfy-Org/SCAIL-2/resolve/main/wan2.1_14B_SCAIL_2_fp16.safetensors"
-fi
