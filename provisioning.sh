@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# --- 0. ARIA2C O'RNATISH (YUKLASH TEZLIGI UCHUN) ---
+if ! command -v aria2c &> /dev/null; then
+    echo "aria2c topilmadi. O'rnatilmoqda..."
+    if command -v apt-get &> /dev/null; then
+        apt-get update && apt-get install -y aria2
+    fi
+fi
+
 # --- 1. PAPKALARNI TAYYORLASH ---
 mkdir -p /workspace/ComfyUI/custom_nodes/
 mkdir -p /workspace/ComfyUI/models/checkpoints/
@@ -74,12 +82,30 @@ if [ ! -d "rgthree-comfy" ]; then
     git clone https://github.com/rgthree/rgthree-comfy.git
 fi
 
+# WAS Node Suite
+if [ ! -d "was-node-suite-comfyui" ]; then
+    git clone https://github.com/WASasquatch/was-node-suite-comfyui.git
+fi
+
+# SeedVR2 Video Upscaler
+if [ ! -d "ComfyUI-Video-Upscaler" ]; then
+    git clone https://github.com/numz/ComfyUI-Video-Upscaler.git
+fi
+
 # --- 3. KUTUBXONALARNI O'RNATISH ---
 echo "=== Python kutubxonalarini o'rnatish ==="
+PIP_CMD="/venv/main/bin/pip"
+if [ ! -f "$PIP_CMD" ]; then
+    PIP_CMD="pip"
+fi
+
+# Zaruriy kutubxonalarni ComfyUI-ning o'z muhitiga o'rnatish
+$PIP_CMD install --no-cache-dir opencv-python-headless accelerate deepdiff
+
 for d in */; do
     if [ -f "$d/requirements.txt" ]; then
         echo "Installing requirements for $d..."
-        pip install --no-cache-dir -r "$d/requirements.txt"
+        $PIP_CMD install --no-cache-dir -r "$d/requirements.txt"
     fi
 done
 
@@ -120,4 +146,10 @@ fi
 cd /workspace/ComfyUI/models/loras/
 if [ ! -f "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors" ]; then
     aria2c -x 16 -s 16 -k 1M -o "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors" "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Lightx2v/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors"
+fi
+
+# 7. Wan 2.1 14B SCAIL 2 (FP16)
+cd /workspace/ComfyUI/models/diffusion_models/
+if [ ! -f "wan2.1_14B_SCAIL_2_fp16.safetensors" ]; then
+    aria2c -x 16 -s 16 -k 1M -o "wan2.1_14B_SCAIL_2_fp16.safetensors" "https://huggingface.co/Comfy-Org/SCAIL-2/resolve/main/wan2.1_14B_SCAIL_2_fp16.safetensors"
 fi
