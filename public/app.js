@@ -20,6 +20,7 @@ const closeModalBtn = document.querySelector('.close-modal');
 
 let allKeysData = [];
 let adminToken = localStorage.getItem('darkhub_admin_token') || '';
+let activeModalKeyId = null;
 
 // Init
 document.addEventListener('DOMContentLoaded', () => {
@@ -79,11 +80,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Close Modal Bindings
     closeModalBtn.addEventListener('click', () => {
         detailsModal.style.display = 'none';
+        activeModalKeyId = null;
     });
     
     window.addEventListener('click', (e) => {
         if (e.target === detailsModal) {
             detailsModal.style.display = 'none';
+            activeModalKeyId = null;
         }
     });
 });
@@ -155,6 +158,11 @@ async function fetchKeys() {
         allKeysData = data;
         
         renderDashboard(data);
+        
+        // Auto-refresh modal contents if open
+        if (detailsModal.style.display === 'flex' && activeModalKeyId !== null) {
+            updateModalContents(activeModalKeyId);
+        }
     } catch (err) {
         if (err.message === 'Unauthorized') return;
         console.error(err);
@@ -297,8 +305,18 @@ async function handleDeleteKey(id) {
  * Show Modal containing HWID details
  */
 function showActivationDetails(keyId) {
+    activeModalKeyId = keyId;
+    updateModalContents(keyId);
+    detailsModal.style.display = 'flex';
+}
+
+function updateModalContents(keyId) {
     const keyData = allKeysData.find(k => k.id === keyId);
-    if (!keyData || !keyData.devices || keyData.devices.length === 0) return;
+    if (!keyData || !keyData.devices || keyData.devices.length === 0) {
+        detailsModal.style.display = 'none';
+        activeModalKeyId = null;
+        return;
+    }
     
     modalKeyTitle.textContent = `Activations: ${keyData.key}`;
     modalActivationsBody.innerHTML = '';
@@ -310,11 +328,12 @@ function showActivationDetails(keyId) {
             <td class="hwid-val">${d.hwid}</td>
             <td>${d.ip_address || 'N/A'}</td>
             <td>${new Date(d.activated_at).toLocaleString()}</td>
+            <td><span class="lease-timer" data-last-seen="${d.last_seen || d.activated_at}">Calculating...</span></td>
         `;
         modalActivationsBody.appendChild(tr);
     });
     
-    detailsModal.style.display = 'flex';
+    tickLeaseTimers();
 }
 
 function escapeHtml(str) {
@@ -326,3 +345,36 @@ function escapeHtml(str) {
          .replace(/"/g, "&quot;")
          .replace(/'/g, "&#039;");
 }
+
+function tickLeaseTimers() {
+    const timers = document.querySelectorAll('.lease-timer');
+    timers.forEach(el => {
+        const lastSeenStr = el.getAttribute('data-last-seen');
+        if (!lastSeenStr) return;
+        
+        const lastSeen = new Date(lastSeenStr).getTime();
+        const elapsedMs = Date.now() - lastSeen;
+        const leaseLimitMs = 30 * 60 * 1000; // 30 minutes
+        const remainingMs = leaseLimitMs - elapsedMs;
+        
+        if (remainingMs <= 0) {
+            el.innerHTML = '<span class="status-pill suspended" style="padding: 2px 8px; font-size: 10px; border-radius: 4px;">🔴 Expired (Free)</span>';
+        } else {
+            const totalSeconds = Math.floor(remainingMs / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            const formattedTime = `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+            el.innerHTML = `<span class="status-pill active" style="padding: 2px 8px; font-size: 10px; border-radius: 4px; background-color: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.3);">🟢 Active (${formattedTime})</span>`;
+        }
+    });
+}
+
+// Live countdown timer ticker (every 1 second)
+setInterval(tickLeaseTimers, 1000);
+
+// Auto-refresh keys data from server (every 10 seconds)
+setInterval(() => {
+    if (adminToken) {
+        fetchKeys();
+    }
+}, 10000);
