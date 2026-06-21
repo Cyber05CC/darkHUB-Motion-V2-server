@@ -456,3 +456,36 @@ body {
     color: var(--text-muted);
     padding: 40px !important;
 }
+
+/* Navigation Tabs */
+.tabs-nav {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 30px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+}
+
+.tab-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 400;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    outline: none;
+}
+
+.tab-btn:hover {
+    color: var(--text-primary);
+    background-color: rgba(247, 247, 247, 0.03);
+}
+
+.tab-btn.active {
+    color: var(--accent);
+    background-color: var(--accent-glow);
+    border: 1px solid var(--border-accent);
+}

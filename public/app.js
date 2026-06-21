@@ -7,6 +7,13 @@ const statSuspendedKeys = document.getElementById('stat-suspended-keys');
 const generatorForm = document.getElementById('generator-form');
 const keysTableBody = document.getElementById('keys-table-body');
 
+// Navigation & Tab Elements
+const tabActive = document.getElementById('tab-active');
+const tabDeleted = document.getElementById('tab-deleted');
+const viewActive = document.getElementById('view-active');
+const viewDeleted = document.getElementById('view-deleted');
+const deletedKeysTableBody = document.getElementById('deleted-keys-table-body');
+
 // Login Elements
 const loginOverlay = document.getElementById('login-overlay');
 const loginForm = document.getElementById('login-form');
@@ -88,6 +95,21 @@ document.addEventListener('DOMContentLoaded', () => {
             detailsModal.style.display = 'none';
             activeModalKeyId = null;
         }
+    });
+
+    // Tab switching event listeners
+    tabActive.addEventListener('click', () => {
+        tabActive.classList.add('active');
+        tabDeleted.classList.remove('active');
+        viewActive.classList.remove('hidden');
+        viewDeleted.classList.add('hidden');
+    });
+
+    tabDeleted.addEventListener('click', () => {
+        tabDeleted.classList.add('active');
+        tabActive.classList.remove('active');
+        viewDeleted.classList.remove('hidden');
+        viewActive.classList.add('hidden');
     });
 });
 
@@ -174,11 +196,14 @@ async function fetchKeys() {
  * Render stats and table data
  */
 function renderDashboard(keys) {
-    let total = keys.length;
+    const activeKeys = keys.filter(k => k.status !== 'deleted');
+    const deletedKeys = keys.filter(k => k.status === 'deleted');
+
+    let total = activeKeys.length;
     let activeBindings = 0;
     let suspended = 0;
     
-    keys.forEach(k => {
+    activeKeys.forEach(k => {
         activeBindings += k.active_devices || 0;
         if (k.status === 'suspended') suspended++;
     });
@@ -187,36 +212,59 @@ function renderDashboard(keys) {
     statActiveDevices.textContent = activeBindings;
     statSuspendedKeys.textContent = suspended;
     
+    // 1. Render Active Keys
     if (total === 0) {
-        keysTableBody.innerHTML = `<tr><td colspan="6" class="loading-state">No license keys generated yet.</td></tr>`;
-        return;
+        keysTableBody.innerHTML = `<tr><td colspan="6" class="loading-state">No active license keys generated yet.</td></tr>`;
+    } else {
+        keysTableBody.innerHTML = '';
+        activeKeys.forEach(k => {
+            const tr = document.createElement('tr');
+            const statusClass = k.status === 'active' ? 'active' : 'suspended';
+            const bindingClass = k.active_devices > 0 ? 'active-count' : 'active-count zero';
+            const bindingAction = k.active_devices > 0 ? `onclick="showActivationDetails(${k.id})"` : '';
+            const statusBtnText = k.status === 'active' ? 'Suspend' : 'Activate';
+            const statusBtnClass = k.status === 'active' ? 'btn-mini btn-danger-mini' : 'btn-mini btn-accent-mini';
+            
+            tr.innerHTML = `
+                <td><span class="key-badge">${k.key}</span></td>
+                <td>${k.max_devices}</td>
+                <td><span class="${bindingClass}" ${bindingAction}>${k.active_devices} / ${k.max_devices}</span></td>
+                <td><span class="status-pill ${statusClass}">${k.status}</span></td>
+                <td>${new Date(k.created_at).toLocaleDateString()}</td>
+                <td>
+                    <div class="actions-cell">
+                        <button class="btn-mini btn-accent-mini" onclick="handleResetKey(${k.id})">Reset HWID</button>
+                        <button class="${statusBtnClass}" onclick="handleToggleStatus(${k.id}, '${k.status}')">${statusBtnText}</button>
+                        <button class="btn-mini btn-danger-mini" onclick="handleDeleteKey(${k.id})">Delete</button>
+                    </div>
+                </td>
+            `;
+            keysTableBody.appendChild(tr);
+        });
     }
-    
-    keysTableBody.innerHTML = '';
-    keys.forEach(k => {
-        const tr = document.createElement('tr');
-        const statusClass = k.status === 'active' ? 'active' : 'suspended';
-        const bindingClass = k.active_devices > 0 ? 'active-count' : 'active-count zero';
-        const bindingAction = k.active_devices > 0 ? `onclick="showActivationDetails(${k.id})"` : '';
-        const statusBtnText = k.status === 'active' ? 'Suspend' : 'Activate';
-        const statusBtnClass = k.status === 'active' ? 'btn-mini btn-danger-mini' : 'btn-mini btn-accent-mini';
-        
-        tr.innerHTML = `
-            <td><span class="key-badge">${k.key}</span></td>
-            <td>${k.max_devices}</td>
-            <td><span class="${bindingClass}" ${bindingAction}>${k.active_devices} / ${k.max_devices}</span></td>
-            <td><span class="status-pill ${statusClass}">${k.status}</span></td>
-            <td>${new Date(k.created_at).toLocaleDateString()}</td>
-            <td>
-                <div class="actions-cell">
-                    <button class="btn-mini btn-accent-mini" onclick="handleResetKey(${k.id})">Reset HWID</button>
-                    <button class="${statusBtnClass}" onclick="handleToggleStatus(${k.id}, '${k.status}')">${statusBtnText}</button>
-                    <button class="btn-mini btn-danger-mini" onclick="handleDeleteKey(${k.id})">Delete</button>
-                </div>
-            </td>
-        `;
-        keysTableBody.appendChild(tr);
-    });
+
+    // 2. Render Deleted Keys
+    deletedKeysTableBody.innerHTML = '';
+    if (deletedKeys.length === 0) {
+        deletedKeysTableBody.innerHTML = `<tr><td colspan="5" class="loading-state">No deleted keys in archive.</td></tr>`;
+    } else {
+        deletedKeys.forEach(k => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><span class="key-badge" style="opacity: 0.6;">${k.key}</span></td>
+                <td>${k.max_devices}</td>
+                <td><span class="status-pill suspended">Deleted</span></td>
+                <td>${new Date(k.created_at).toLocaleDateString()}</td>
+                <td>
+                    <div class="actions-cell">
+                        <button class="btn-mini btn-accent-mini" onclick="handleToggleStatus(${k.id}, 'deleted')">Restore</button>
+                        <button class="btn-mini btn-danger-mini" onclick="handleDeleteKey(${k.id})">Delete Permanently</button>
+                    </div>
+                </td>
+            `;
+            deletedKeysTableBody.appendChild(tr);
+        });
+    }
 }
 
 /**

@@ -359,8 +359,18 @@ app.post('/api/admin/keys/reset', checkAdminAuth, async (req, res) => {
 app.delete('/api/admin/keys/:id', checkAdminAuth, async (req, res) => {
     const id = req.params.id;
     try {
-        await dbRun('DELETE FROM keys WHERE id = ?', [id]);
-        res.json({ message: 'License key deleted.' });
+        const keyRow = await dbGet('SELECT * FROM keys WHERE id = ?', [id]);
+        if (keyRow && keyRow.status === 'deleted') {
+            // Delete activations and key permanently
+            await dbRun('DELETE FROM activations WHERE key_id = ?', [id]);
+            await dbRun('DELETE FROM keys WHERE id = ?', [id]);
+            res.json({ message: 'License key permanently deleted.' });
+        } else {
+            // Delete active bindings first, then soft-delete the key
+            await dbRun('DELETE FROM activations WHERE key_id = ?', [id]);
+            await dbRun("UPDATE keys SET status = 'deleted' WHERE id = ?", [id]);
+            res.json({ message: 'License key archived.' });
+        }
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
